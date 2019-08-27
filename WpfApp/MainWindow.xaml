@@ -9,13 +9,9 @@
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
-        Title="MainWindow" Height="200" Width="200"
+        Title="MainWindow" Height="20" Width="20"
         >
     <Grid>
-        <Label x:Name="label1" Content="Label1" HorizontalAlignment="Left" Margin="0,10,0,0" VerticalAlignment="Top" Width="200" Background="#FFD9E0FF"/>
-        <Label x:Name="label2" Content="Label2" HorizontalAlignment="Left" Margin="0,30,0,0" VerticalAlignment="Top" Width="200" Background="#FFD9E0FF"/>
-        <Label x:Name="label3" Content="Label3" HorizontalAlignment="Left" Margin="0,50,0,0" VerticalAlignment="Top" Width="200" Background="#FFD9E0FF"/>
-        <Label x:Name="label4" Content="Label4" HorizontalAlignment="Left" Margin="0,70,0,0" VerticalAlignment="Top" Width="200" Background="#FFD9E0FF"/>
         <Ellipse  
         Canvas.Top="0"  
         Canvas.Left="0"  

@@ -25,6 +25,9 @@ namespace WpfApp2
         [DllImport("user32.dll")]
         static extern IntPtr GetForegroundWindow();
 
+        [DllImport("Kernel32.dll")]
+        static extern IntPtr GetCurrentThreadId();
+
         [DllImport("user32.dll")]
         static extern IntPtr GetWindowThreadProcessId(IntPtr hWnd, IntPtr lpdwProcessId);
 
@@ -35,7 +38,38 @@ namespace WpfApp2
         public static extern bool GetWindowRect(IntPtr hwnd, out RECT lpRect);
 
         [DllImport("user32.dll")]
+        public static extern bool ClientToScreen(IntPtr hwnd, out RECT lpRect);
+
+        [DllImport("user32.dll")]
+        private static extern void ClientToScreen(IntPtr hWnd, ref Point p);
+
+        [DllImport("user32.dll")]
         public static extern bool GetClientRect(IntPtr hwnd, out RECT lpRect);
+
+        [DllImport("user32.dll", EntryPoint = "GetCaretPos")]
+        static extern bool GetCaretPos(out Point lpPoint);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr AttachThreadInput(IntPtr idAttach, IntPtr idAttachTo, int fAttach);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetFocus();
+
+        [DllImport("imm32.dll", SetLastError = true)]
+        public static extern int ImmGetCompositionWindow(int hIMC, ref COMPOSITIONFORM lpCompositionForm);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct POINT
+        {
+            public int x;
+            public int y;
+        }
+        public struct COMPOSITIONFORM
+        {
+            public uint dwStyle;
+            public POINT ptCurrentPos;
+            public RECT rcArea;
+        }
 
 
         public struct RECT
@@ -66,63 +100,101 @@ namespace WpfApp2
         private DispatcherTimer _timer;
         private void SetupTimer()
         {
-            // タイマのインスタンスを生成
             _timer = new DispatcherTimer(); // 優先度はDispatcherPriority.Background
-                                            // インターバルを設定
-            _timer.Interval = TimeSpan.FromMilliseconds(100);
-
-            // タイマメソッドを設定
-            _timer.Tick += new EventHandler(getCaretPos);
-            // タイマを開始
+            _timer.Interval = TimeSpan.FromMilliseconds(200);
+            _timer.Tick += new EventHandler(myGetCaretPos);
             _timer.Start();
         }
 
 
-        private void getCaretPos(object sender, EventArgs e)
+        private void myGetCaretPos(object sender, EventArgs e)
         {
-            IntPtr hWnd = GetForegroundWindow();
-            if (hWnd != IntPtr.Zero)
+            IntPtr hWnd_current = GetCurrentThreadId();
+            IntPtr hWnd_foreground = GetForegroundWindow();
+            if (hWnd_foreground != IntPtr.Zero)
             {
-                IntPtr target = GetWindowThreadProcessId(hWnd, IntPtr.Zero);
+                IntPtr target = GetWindowThreadProcessId(hWnd_foreground, IntPtr.Zero);
 
                 GUITHREADINFO gti = new GUITHREADINFO();
                 gti.cbSize = Marshal.SizeOf(gti);
-                if (!GetGUIThreadInfo(target, ref gti))
+                if (GetGUIThreadInfo(target, ref gti))
                 {
-                    throw new System.ComponentModel.Win32Exception();
+                    RECT rect1a = new RECT(0, 0, 0, 0);
+                    GetWindowRect(gti.hwndFocus, out rect1a);
+
+                    RECT rect1b = new RECT(0, 0, 0, 0);
+                    ClientToScreen(gti.hwndFocus, out rect1b);
+
+                    RECT rect1c = new RECT(0, 0, 0, 0);
+                    GetWindowRect(hWnd_foreground, out rect1c);
+
+                    RECT rect1d = new RECT(0, 0, 0, 0);
+                    ClientToScreen(hWnd_foreground, out rect1d);
+
+                    RECT rect1e = new RECT(0, 0, 0, 0);
+                    GetWindowRect(gti.hwndCaret, out rect1e);
+
+                    RECT rect1f = new RECT(0, 0, 0, 0);
+                    ClientToScreen(gti.hwndCaret, out rect1f);
+
+
+                    Point p = new Point();
+                    if (hWnd_current != hWnd_foreground)
+                    {
+                        AttachThreadInput(hWnd_current, hWnd_foreground, 1);
+                        /*
+                        IntPtr ptr = GetFocus();
+                        if (ptr.ToInt32() != 0)
+                        {
+                            GetCaretPos(out p);
+                            ClientToScreen(ptr, ref p);
+                        }
+                        */
+                        GetCaretPos(out p);
+                        ClientToScreen(hWnd_current, ref p);
+
+                        AttachThreadInput(hWnd_current, hWnd_foreground, 0);
+                    }
+
+
+                    RECT rect2a = new RECT(0, 0, 0, 0);
+                    if (!GetClientRect(hWnd_foreground, out rect2a)) {
+                        int errCode = Marshal.GetLastWin32Error();
+                        Console.WriteLine("Win32 ERROR:" + String.Format("{0:X8}", errCode));
+                    };
+
+                    Point p2 = new Point(gti.rectCaret.iLeft, gti.rectCaret.iTop);
+                    p2.X = p2.X + rect1b.iLeft;
+                    p2.Y = p2.Y + rect1b.iTop;
+
+                    this.Left = p2.X - this.Width / 2;
+                    this.Top = p2.Y - this.Height / 2;
+
+                    Console.WriteLine(
+                        "  hWnd_foreground:" + hWnd_foreground +
+                        ", hWnd_current:" + hWnd_current +
+                        ", p:{" + p.X + "," + p.Y + "}" +
+                        ", rect1a:{" + rect1a.iLeft + "," + rect1a.iTop + "}" +
+                        ", rect1b:{" + rect1b.iLeft + "," + rect1b.iTop + "}" +
+                        ", rect1c:{" + rect1c.iLeft + "," + rect1c.iTop + "}" +
+                        ", rect1d:{" + rect1d.iLeft + "," + rect1d.iTop + "}" +
+                        ", rect1e:{" + rect1e.iLeft + "," + rect1e.iTop + "}" +
+                        ", rect1f:{" + rect1f.iLeft + "," + rect1f.iTop + "}" +
+                        ", r2a.iLeft:" + rect2a.iLeft +
+                        ", r2a.iTop:" + rect2a.iTop +
+                        ", gti.iLeft:" + gti.rectCaret.iLeft +
+                        ", gti.iTop:" + gti.rectCaret.iTop +
+                        ", gti.hwndCaret:" + gti.hwndCaret +
+                        ", gti.hwndFocus:" + gti.hwndFocus +
+                        ", gti.hwndActive:" + gti.hwndActive);
+
+                } else
+                {
+                    Console.WriteLine("GetGUIThreadInfo is false.");
                 }
-                label1.Content = String.Format("l:{0}, t:{1}, w:{2}, h:{3}",
-                    gti.rectCaret.iLeft, gti.rectCaret.iTop,
-                    gti.rectCaret.iRight - gti.rectCaret.iLeft, gti.rectCaret.iBottom - gti.rectCaret.iTop);
-                Point p2 = new Point(gti.rectCaret.iLeft, gti.rectCaret.iTop);
-
-                RECT rect1 = new RECT(0, 0, 0, 0);
-                GetWindowRect(gti.hwndFocus, out rect1);
-
-                RECT rect2 = new RECT(0, 0, 0, 0);
-                GetClientRect(hWnd, out rect2);
-                label2.Content = String.Format("WRect l:{0}, t:{1}, r:{2}, b:{3}", rect1.iLeft, rect1.iTop, rect1.iRight, rect1.iBottom);
-                label3.Content = String.Format("CRect l:{0}, t:{1}, r:{2}, b:{3}", rect2.iLeft, rect2.iTop, rect2.iRight, rect2.iBottom);
-
-                p2.X = p2.X + rect1.iLeft;
-                p2.Y = p2.Y + rect1.iTop;
-
-                this.Left = p2.X - this.Width / 2;
-                this.Top = p2.Y - this.Height / 2;
-
-                // for calibration
-                /*
-                this.Left = 0 - this.Width/2;
-                this.Top = 0 - this.Height/2; 
-                */
-                label4.Content = String.Format("Caret x:{0}, y:{1}, w:{2}, h:{3}", p2.X, p2.Y, gti.rectCaret.iRight - gti.rectCaret.iLeft, gti.rectCaret.iBottom - gti.rectCaret.iTop);
-            }
-            else
+            } else
             {
-                label1.Content = "n/a";
-                label2.Content = "n/a";
-                label3.Content = "n/a";
-                label4.Content = "n/a";
+                Console.WriteLine("GetForegroundWindow handle is null.");
             }
         }
 
